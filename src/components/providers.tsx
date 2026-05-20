@@ -25,7 +25,7 @@ import {
 import { campaignNodes, createNextCampaignState, getNodeState, isNodeUnlocked } from "@/lib/campaign/nodes"
 import { persistPlayerState, fetchProfileBundle, removeCloudSession, saveCloudSession, unlockTheme } from "@/lib/supabase/data"
 import { createClient } from "@/lib/supabase/client"
-import { isSupabaseConfigured } from "@/lib/supabase/helpers"
+import { getSupabaseRedirectUrl, isSupabaseConfigured } from "@/lib/supabase/helpers"
 import { applyRewardToStats, calculateLevel, calculateReward, calculateSuperReward } from "@/lib/sudoku/rewards"
 import { getThemeTokens } from "@/lib/theme/themes"
 import {
@@ -387,17 +387,36 @@ export function Providers({ children }: { children: ReactNode }) {
         }
 
         setAuthLoading(true)
-        const { error } = await createClient().auth.signInWithPassword({
-          email,
-          password
-        })
 
-        if (error) {
+        try {
+          const { data, error } = await createClient().auth.signInWithPassword({
+            email,
+            password
+          })
+
+          if (error) {
+            setAuthLoading(false)
+
+            if (
+              error.message.includes("Invalid login credentials") ||
+              error.message.includes("Email not confirmed")
+            ) {
+              return "Неверный email или пароль."
+            }
+
+            return error.message
+          }
+
+          if (!data.session) {
+            setAuthLoading(false)
+            return "Не удалось открыть сессию. Попробуй еще раз."
+          }
+
+          return null
+        } catch {
           setAuthLoading(false)
-          return error.message
+          return "Не удалось войти. Проверь сеть и попробуй снова."
         }
-
-        return null
       },
       async signUp(email, password) {
         if (!supabaseReady) {
@@ -406,41 +425,55 @@ export function Providers({ children }: { children: ReactNode }) {
 
         const supabase = createClient()
         setAuthLoading(true)
-        const { error: registerError } = await supabase.rpc("register_password_user", {
-          p_email: email,
-          p_password: password
-        })
 
-        if (registerError) {
+        try {
+          const { data, error } = await supabase.auth.signUp({
+            email,
+            password,
+            options: {
+              emailRedirectTo: getSupabaseRedirectUrl("/auth/confirm?next=/profile"),
+              data: {
+                avatar_seed: "sudoku-wave"
+              }
+            }
+          })
+
+          if (error) {
+            setAuthLoading(false)
+            const message = error.message || "Не удалось создать аккаунт."
+
+            if (
+              message.includes("User already registered") ||
+              message.includes("already been registered")
+            ) {
+              return "Пользователь с таким email уже существует."
+            }
+
+            if (message.includes("Password should be at least")) {
+              return "Пароль должен содержать минимум 6 символов."
+            }
+
+            if (message.includes("Unable to validate email address")) {
+              return "Укажи корректный email."
+            }
+
+            if (message.includes("email rate limit exceeded")) {
+              return "Supabase пытается отправить письмо подтверждения и уперся в лимит. Отключи Confirm email или подожди немного."
+            }
+
+            return message
+          }
+
+          if (!data.session) {
+            setAuthLoading(false)
+            return "Аккаунт создан, но в Supabase включено подтверждение email. Отключи Confirm email, если нужен мгновенный вход."
+          }
+
+          return null
+        } catch {
           setAuthLoading(false)
-          const message = registerError.message || "Не удалось создать аккаунт."
-
-          if (message.includes("User already registered")) {
-            return "Пользователь с таким email уже существует."
-          }
-
-          if (message.includes("Password must be at least 6 characters")) {
-            return "Пароль должен содержать минимум 6 символов."
-          }
-
-          if (message.includes("Invalid email address")) {
-            return "Укажи корректный email."
-          }
-
-          return message
+          return "Не удалось создать аккаунт. Проверь сеть и попробуй снова."
         }
-
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email,
-          password
-        })
-
-        if (signInError) {
-          setAuthLoading(false)
-          return signInError.message
-        }
-
-        return null
       },
       async signOut() {
         if (!supabaseReady) {
@@ -450,13 +483,14 @@ export function Providers({ children }: { children: ReactNode }) {
           return
         }
 
-        await Promise.race([
-          createClient()
-            .auth
-            .signOut()
-            .catch(() => undefined),
-          new Promise<void>((resolve) => {
-            window.setTimeout(resolve, 1500)
+        await Promise.allSettled([
+          fetch("/auth/logout", {
+            method: "POST",
+            credentials: "include",
+            cache: "no-store"
+          }),
+          createClient().auth.signOut({
+            scope: "local"
           })
         ])
 

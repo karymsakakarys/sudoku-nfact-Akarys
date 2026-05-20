@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { FormEvent, useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useAppState } from "@/components/providers"
 
 type AuthMode = "login" | "register"
@@ -48,11 +48,17 @@ const modeCopy: Record<
 export function AuthForm({ mode }: { mode: AuthMode }) {
   const { signIn, signUp, supabaseReady, authLoading, user } = useAppState()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [status, setStatus] = useState<"idle" | "submitting" | "success" | "error">("idle")
   const [message, setMessage] = useState("")
   const copy = modeCopy[mode]
+  const requestedNext = searchParams.get("next")
+  const nextPath = requestedNext && requestedNext.startsWith("/") ? requestedNext : "/profile"
+  const alternateHref = requestedNext
+    ? `${copy.alternateHref}?next=${encodeURIComponent(nextPath)}`
+    : copy.alternateHref
 
   useEffect(() => {
     if (!user || authLoading) {
@@ -61,9 +67,24 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
 
     setStatus("idle")
     setMessage("")
-    router.replace("/profile")
+    router.replace(nextPath)
     router.refresh()
-  }, [authLoading, router, user])
+  }, [authLoading, nextPath, router, user])
+
+  useEffect(() => {
+    if (status !== "submitting") {
+      return
+    }
+
+    const timer = window.setTimeout(() => {
+      setStatus("error")
+      setMessage("Сессия не подтвердилась вовремя. Обнови страницу и попробуй снова.")
+    }, 8000)
+
+    return () => {
+      window.clearTimeout(timer)
+    }
+  }, [status])
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -71,7 +92,7 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
     if (user) {
       setStatus("idle")
       setMessage("")
-      router.replace("/profile")
+      router.replace(nextPath)
       router.refresh()
       return
     }
@@ -95,17 +116,11 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
     }
 
     if (mode === "login") {
-      setStatus("success")
-      setMessage("")
-      router.replace("/profile")
-      router.refresh()
       return
     }
 
     setStatus("success")
     setMessage(copy.successMessage)
-    router.replace("/profile")
-    router.refresh()
   }
 
   return (
@@ -153,7 +168,7 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
         <div className="mt-6 rounded-[28px] bg-[var(--reward)] p-5 text-sm text-soft">
           {!supabaseReady
             ? "Auth отключен, пока не заполнены переменные окружения Supabase."
-            : "Аккаунт создается сразу через Supabase и после регистрации пользователь автоматически входит в приложение."}
+            : "Для мгновенной регистрации в Supabase должно быть выключено Confirm email: Authentication -> Providers -> Email."}
         </div>
 
         {message ? (
@@ -178,7 +193,7 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
           <p className="mt-5 text-sm text-soft">
             {copy.alternateLabel}{" "}
             <Link
-              href={copy.alternateHref}
+              href={alternateHref}
               className="font-medium text-[var(--accent)] underline-offset-4 hover:underline"
             >
               {copy.alternateCta}

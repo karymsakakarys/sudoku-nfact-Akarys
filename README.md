@@ -26,7 +26,7 @@ Sudoku Mind Garden is a premium, gamified Sudoku web app built as a daily brain-
 - Soft mistake tracking and live conflict highlighting
 - Theme shop with `Base`, `Ocean`, and `Sunny Blue`
 - Hybrid AI Coach endpoint at `/api/coach/explain` with OpenAI + local fallback
-- Email/password auth with Supabase confirmation flow
+- Email/password auth with instant Supabase session flow
 - Global leaderboard surfaces with Supabase-ready queries and local fallbacks
 - 3D Sudoku teaser hook for a future premium mode
 
@@ -100,8 +100,8 @@ Site URL: http://localhost:3000
 Redirect URLs: http://localhost:3000/auth/confirm
 ```
 
-4. Keep Email provider enabled and email confirmation turned on
-5. In Supabase Auth email templates, update the confirmation URL to:
+4. Keep Email provider enabled and turn Confirm email off for instant password signup
+5. If you intentionally re-enable email confirmation later, set the confirmation URL to:
 
 ```text
 {{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&next=/profile

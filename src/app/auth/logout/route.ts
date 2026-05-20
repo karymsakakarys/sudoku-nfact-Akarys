@@ -8,10 +8,9 @@ type CookieWrite = {
   options?: Record<string, unknown>
 }
 
-export async function GET(request: Request) {
+async function signOutWithServerClient() {
   const cookieStore = await cookies()
-  const loginUrl = new URL("/login", request.url)
-  const response = NextResponse.redirect(loginUrl)
+  const response = NextResponse.json({ ok: true }, { status: 200 })
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -33,4 +32,20 @@ export async function GET(request: Request) {
   await supabase.auth.signOut()
 
   return response
+}
+
+export async function POST() {
+  return signOutWithServerClient()
+}
+
+export async function GET(request: Request) {
+  const signOutResponse = await signOutWithServerClient()
+  const loginUrl = new URL("/login", request.url)
+  const redirect = NextResponse.redirect(loginUrl)
+
+  signOutResponse.cookies.getAll().forEach((cookie) => {
+    redirect.cookies.set(cookie)
+  })
+
+  return redirect
 }

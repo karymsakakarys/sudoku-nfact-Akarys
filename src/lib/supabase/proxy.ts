@@ -33,10 +33,12 @@ export async function updateSession(request: NextRequest) {
     }
   )
 
-  const { data } = await supabase.auth.getClaims()
+  const {
+    data: { user }
+  } = await supabase.auth.getUser()
 
   return {
     response,
-    hasSession: Boolean(data?.claims)
+    hasSession: Boolean(user)
   }
 }

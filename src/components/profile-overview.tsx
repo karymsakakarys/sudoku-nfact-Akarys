@@ -22,7 +22,7 @@ export function ProfileOverview() {
 
   async function handleSignOut() {
     await signOut()
-    window.location.assign("/login")
+    window.location.replace("/login")
   }
 
   return (
