@@ -1,0 +1,11 @@
+.next
+node_modules
+.env.local
+.env
+dist
+coverage
+.DS_Store
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
+tsconfig.tsbuildinfo
