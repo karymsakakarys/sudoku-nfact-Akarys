@@ -3,6 +3,7 @@
 import {
   type CSSProperties,
   type ReactNode,
+  useCallback,
   createContext,
   startTransition,
   useContext,
@@ -315,6 +316,60 @@ export function Providers({ children }: { children: ReactNode }) {
     return applyDailyLoginStreak(baseState, awardedAt)
   }
 
+  const applyAuthenticatedSession = useCallback(
+    async (nextUser: User, options?: { awardedAt?: string }) => {
+      if (signOutInFlightRef.current) {
+        return
+      }
+
+      const storageKey = getUserStateStorageKey(nextUser.id)
+      const loginAwardedAt = options?.awardedAt ?? new Date().toISOString()
+      const bootstrapState = awardLoginStreakOnce(
+        readUserPlayerState(nextUser.id),
+        nextUser.id,
+        loginAwardedAt
+      )
+
+      startTransition(() => {
+        setUser(nextUser)
+        setPlayerState(bootstrapState)
+        setActiveStorageKey(storageKey)
+        setCloudHydratedUserId(null)
+        setAuthLoading(false)
+      })
+
+      try {
+        const bundle = await fetchProfileBundle(createClient(), nextUser.id)
+
+        if (signOutInFlightRef.current) {
+          return
+        }
+
+        startTransition(() => {
+          setUser(nextUser)
+          setPlayerState((current) =>
+            awardLoginStreakOnce(
+              buildPlayerStateFromCloud(bundle, current),
+              nextUser.id,
+              loginAwardedAt
+            )
+          )
+          setActiveStorageKey(storageKey)
+          setCloudHydratedUserId(nextUser.id)
+        })
+      } catch {
+        if (signOutInFlightRef.current) {
+          return
+        }
+
+        startTransition(() => {
+          setCloudHydratedUserId(nextUser.id)
+        })
+      }
+    },
+    []
+  )
+
   useEffect(() => {
     if (!supabaseReady) {
       setAuthLoading(false)
@@ -332,57 +387,6 @@ export function Providers({ children }: { children: ReactNode }) {
       })
     }
 
-    const syncSignedInState = async (nextUser: User) => {
-      if (signOutInFlightRef.current) {
-        return
-      }
-
-      const storageKey = getUserStateStorageKey(nextUser.id)
-      const loginAwardedAt = new Date().toISOString()
-      const bootstrapState = awardLoginStreakOnce(
-        readUserPlayerState(nextUser.id),
-        nextUser.id,
-        loginAwardedAt
-      )
-      initialAuthResolved = true
-
-      startTransition(() => {
-        setUser(nextUser)
-        setPlayerState(bootstrapState)
-        setActiveStorageKey(storageKey)
-        setCloudHydratedUserId(null)
-        setAuthLoading(false)
-      })
-
-      try {
-        const bundle = await fetchProfileBundle(supabase, nextUser.id)
-        if (cancelled) {
-          return
-        }
-
-        startTransition(() => {
-          setUser(nextUser)
-          setPlayerState((current) =>
-            awardLoginStreakOnce(
-              buildPlayerStateFromCloud(bundle, current),
-              nextUser.id,
-              loginAwardedAt
-            )
-          )
-          setActiveStorageKey(storageKey)
-          setCloudHydratedUserId(nextUser.id)
-        })
-      } catch {
-        if (cancelled) {
-          return
-        }
-
-        startTransition(() => {
-          setCloudHydratedUserId(nextUser.id)
-        })
-      }
-    }
-
     supabase.auth
       .getSession()
       .then(({ data }) => {
@@ -392,7 +396,8 @@ export function Providers({ children }: { children: ReactNode }) {
           return undefined
         }
         if (sessionUser) {
-          return syncSignedInState(sessionUser)
+          initialAuthResolved = true
+          return applyAuthenticatedSession(sessionUser)
         }
 
         syncSignedOutState()
@@ -424,7 +429,8 @@ export function Providers({ children }: { children: ReactNode }) {
         }
 
         if (session?.user) {
-          await syncSignedInState(session.user)
+          initialAuthResolved = true
+          await applyAuthenticatedSession(session.user)
           return
         }
 
@@ -441,7 +447,7 @@ export function Providers({ children }: { children: ReactNode }) {
       window.clearTimeout(initialAuthTimer)
       subscription.unsubscribe()
     }
-  }, [supabaseReady])
+  }, [applyAuthenticatedSession, supabaseReady])
 
   useEffect(() => {
     if (!hydrated || !supabaseReady || !user || cloudHydratedUserId !== user.id) {
@@ -481,8 +487,6 @@ export function Providers({ children }: { children: ReactNode }) {
           return "Добавь ключи Supabase в .env.local, чтобы включить вход."
         }
 
-        setAuthLoading(true)
-
         try {
           const { data, error } = await createClient().auth.signInWithPassword({
             email,
@@ -490,8 +494,6 @@ export function Providers({ children }: { children: ReactNode }) {
           })
 
           if (error) {
-            setAuthLoading(false)
-
             if (
               error.message.includes("Invalid login credentials") ||
               error.message.includes("Email not confirmed")
@@ -503,13 +505,13 @@ export function Providers({ children }: { children: ReactNode }) {
           }
 
           if (!data.session) {
-            setAuthLoading(false)
             return "Не удалось открыть сессию. Попробуй еще раз."
           }
 
+          await applyAuthenticatedSession(data.session.user)
+
           return null
         } catch {
-          setAuthLoading(false)
           return "Не удалось войти. Проверь сеть и попробуй снова."
         }
       },
@@ -519,7 +521,6 @@ export function Providers({ children }: { children: ReactNode }) {
         }
 
         const supabase = createClient()
-        setAuthLoading(true)
 
         try {
           const { data, error } = await supabase.auth.signUp({
@@ -534,7 +535,6 @@ export function Providers({ children }: { children: ReactNode }) {
           })
 
           if (error) {
-            setAuthLoading(false)
             const message = error.message || "Не удалось создать аккаунт."
 
             if (
@@ -560,13 +560,13 @@ export function Providers({ children }: { children: ReactNode }) {
           }
 
           if (!data.session) {
-            setAuthLoading(false)
             return "Аккаунт создан, но в Supabase включено подтверждение email. Отключи Confirm email, если нужен мгновенный вход."
           }
 
+          await applyAuthenticatedSession(data.session.user)
+
           return null
         } catch {
-          setAuthLoading(false)
           return "Не удалось создать аккаунт. Проверь сеть и попробуй снова."
         }
       },
@@ -822,7 +822,17 @@ export function Providers({ children }: { children: ReactNode }) {
         }))
       }
     }),
-    [authLoading, isAuthorPreviewAccount, logoutRedirecting, playerState, router, signOutInFlight, supabaseReady, user]
+    [
+      applyAuthenticatedSession,
+      authLoading,
+      isAuthorPreviewAccount,
+      logoutRedirecting,
+      playerState,
+      router,
+      signOutInFlight,
+      supabaseReady,
+      user
+    ]
   )
 
   const themeTokens = getThemeTokens(playerState.equippedTheme, "light")

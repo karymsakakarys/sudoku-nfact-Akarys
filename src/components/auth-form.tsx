@@ -202,7 +202,7 @@ export function AuthForm({
           </label>
           <button
             type="submit"
-            disabled={status === "submitting" || authLoading}
+            disabled={status === "submitting"}
             className="primary-button w-full rounded-2xl px-4 py-3 font-medium disabled:opacity-70"
           >
             {status === "submitting" ? copy.loadingLabel : copy.submitLabel}
@@ -211,7 +211,7 @@ export function AuthForm({
             <button
               type="button"
               onClick={handleAuthorPreviewFill}
-              disabled={status === "submitting" || authLoading}
+              disabled={status === "submitting"}
               className="author-preview-button w-full rounded-2xl px-4 py-3 font-medium disabled:opacity-70"
             >
               Аккаунт автора
