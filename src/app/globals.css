@@ -131,6 +131,12 @@ select {
   border: 1px solid var(--border-color);
 }
 
+.author-preview-button {
+  background: linear-gradient(135deg, #8d61ff, #6a4be8);
+  color: white;
+  box-shadow: 0 14px 32px rgba(110, 83, 214, 0.22);
+}
+
 .text-soft {
   color: var(--foreground-soft);
 }

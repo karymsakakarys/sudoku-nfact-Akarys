@@ -51,6 +51,8 @@ export function AuthForm({
   mode: AuthMode
   nextPath?: string
 }) {
+  const authorPreviewEmail = "author@sudokumindgarden.app"
+  const authorPreviewPassword = "Preview123!"
   const { signIn, signUp, supabaseReady, authLoading, user } = useAppState()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -60,6 +62,8 @@ export function AuthForm({
     nextPath.startsWith("/") ? nextPath : "/profile"
   )
   const hasNavigatedRef = useRef(false)
+  const emailInputRef = useRef<HTMLInputElement | null>(null)
+  const passwordInputRef = useRef<HTMLInputElement | null>(null)
   const copy = modeCopy[mode]
   const normalizedNextPath = resolvedNextPath.startsWith("/") ? resolvedNextPath : "/profile"
   const alternateHref =
@@ -146,6 +150,21 @@ export function AuthForm({
     setMessage(copy.successMessage)
   }
 
+  function handleAuthorPreviewFill() {
+    setEmail(authorPreviewEmail)
+    setPassword(authorPreviewPassword)
+    setStatus("idle")
+    setMessage("")
+
+    window.requestAnimationFrame(() => {
+      passwordInputRef.current?.focus()
+      passwordInputRef.current?.setSelectionRange(
+        authorPreviewPassword.length,
+        authorPreviewPassword.length
+      )
+    })
+  }
+
   return (
     <div className="mx-auto max-w-2xl">
       <div className="app-surface rounded-[36px] p-6 sm:p-8">
@@ -157,6 +176,7 @@ export function AuthForm({
           <label className="panel-surface block rounded-[24px] p-4">
             <span className="text-xs uppercase tracking-[0.2em] text-soft">Email</span>
             <input
+              ref={emailInputRef}
               type="email"
               required
               autoComplete="email"
@@ -169,6 +189,7 @@ export function AuthForm({
           <label className="panel-surface block rounded-[24px] p-4">
             <span className="text-xs uppercase tracking-[0.2em] text-soft">Password</span>
             <input
+              ref={passwordInputRef}
               type="password"
               required
               minLength={6}
@@ -186,6 +207,16 @@ export function AuthForm({
           >
             {status === "submitting" ? copy.loadingLabel : copy.submitLabel}
           </button>
+          {mode === "login" ? (
+            <button
+              type="button"
+              onClick={handleAuthorPreviewFill}
+              disabled={status === "submitting" || authLoading}
+              className="author-preview-button w-full rounded-2xl px-4 py-3 font-medium disabled:opacity-70"
+            >
+              Аккаунт автора
+            </button>
+          ) : null}
         </form>
 
         <div className="mt-6 rounded-[28px] bg-[var(--reward)] p-5 text-sm text-soft">

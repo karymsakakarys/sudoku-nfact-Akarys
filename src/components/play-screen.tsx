@@ -294,8 +294,6 @@ export function PlayScreen({ nodeId }: { nodeId: string }) {
 
     if (value !== null && isBoardSolved(annotatedBoard, basePuzzle.solution)) {
       const completedAt = new Date().toISOString()
-      const currentDateKey = completedAt.slice(0, 10)
-      const streakAwarded = playerState.campaignState.lastActiveDate !== currentDateKey
       const nextReward = completeCampaignNodeRef.current({
         nodeId,
         difficulty: node!.difficulty!,
@@ -308,8 +306,8 @@ export function PlayScreen({ nodeId }: { nodeId: string }) {
       setReward({
         xp: nextReward.xp,
         coins: nextReward.coins,
-        streakAwarded,
-        streakTotal: streakAwarded ? playerState.stats.streak + 1 : playerState.stats.streak
+        streakAwarded: false,
+        streakTotal: playerState.stats.streak
       })
     }
   }
@@ -574,7 +572,7 @@ export function PlayScreen({ nodeId }: { nodeId: string }) {
                   transition={{ delay: 0.2 }}
                   className="reward-chip streak"
                 >
-                  {reward.streakAwarded ? "🔥 +1" : "🔥 сохранен"}
+                  {`🔥 ${reward.streakTotal}`}
                 </motion.span>
               </div>
               <Button

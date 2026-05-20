@@ -48,7 +48,7 @@ export function ProfileOverview() {
         <div>
           <p className="map-brow">Streak</p>
           <p className="mt-2 text-3xl font-semibold">{playerState.stats.streak}</p>
-          <p className="mt-1 text-sm text-soft">Одна победа в день поддерживает огонь.</p>
+          <p className="mt-1 text-sm text-soft">Первый вход дает огонек, потом по одному в день.</p>
         </div>
       </section>
 

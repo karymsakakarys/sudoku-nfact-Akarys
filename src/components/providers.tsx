@@ -8,6 +8,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState
 } from "react"
 import { usePathname } from "next/navigation"
@@ -83,7 +84,7 @@ interface AppContextValue {
 }
 
 const AppContext = createContext<AppContextValue | null>(null)
-const publicRoutes = ["/login", "/register", "/auth", "/auth/confirm", "/auth/error"]
+const publicRoutes = ["/login", "/register", "/auth", "/auth/confirm", "/auth/error", "/leaderboard"]
 
 function getDateKey(input: string) {
   return input.slice(0, 10)
@@ -133,6 +134,28 @@ function mergeBestTime(local: number | null, cloud: number | null) {
     return local
   }
   return Math.min(local, cloud)
+}
+
+function applyDailyLoginStreak(
+  state: AppPlayerState,
+  awardedAt: string
+) {
+  const currentDate = awardedAt.slice(0, 10)
+  const previousDate = state.stats.lastDailyCompletedAt?.slice(0, 10)
+
+  if (previousDate === currentDate) {
+    return state
+  }
+
+  return {
+    ...state,
+    stats: {
+      ...state.stats,
+      streak: Math.max(state.stats.streak, 0) + 1,
+      dailyCompletions: state.stats.dailyCompletions + 1,
+      lastDailyCompletedAt: awardedAt
+    }
+  }
 }
 
 function mergeCampaignState(localState: AppPlayerState["campaignState"], cloudState: AppPlayerState["campaignState"]) {
@@ -239,6 +262,7 @@ export function Providers({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [activeStorageKey, setActiveStorageKey] = useState(guestStateStorageKey)
   const [cloudHydratedUserId, setCloudHydratedUserId] = useState<string | null>(null)
+  const streakClaimedRef = useRef<Set<string>>(new Set())
   const isAuthorPreviewAccount = user?.email?.toLowerCase() === authorPreviewEmail
 
   function resetToGuestState() {
@@ -268,6 +292,17 @@ export function Providers({ children }: { children: ReactNode }) {
     }
   }, [activeStorageKey, hydrated, playerState])
 
+  function awardLoginStreakOnce(baseState: AppPlayerState, userId: string, awardedAt: string) {
+    const claimKey = `${userId}:${awardedAt.slice(0, 10)}`
+
+    if (streakClaimedRef.current.has(claimKey)) {
+      return baseState
+    }
+
+    streakClaimedRef.current.add(claimKey)
+    return applyDailyLoginStreak(baseState, awardedAt)
+  }
+
   useEffect(() => {
     if (!supabaseReady) {
       setAuthLoading(false)
@@ -287,7 +322,12 @@ export function Providers({ children }: { children: ReactNode }) {
 
     const syncSignedInState = async (nextUser: User) => {
       const storageKey = getUserStateStorageKey(nextUser.id)
-      const bootstrapState = readUserPlayerState(nextUser.id)
+      const loginAwardedAt = new Date().toISOString()
+      const bootstrapState = awardLoginStreakOnce(
+        readUserPlayerState(nextUser.id),
+        nextUser.id,
+        loginAwardedAt
+      )
       initialAuthResolved = true
 
       startTransition(() => {
@@ -306,7 +346,13 @@ export function Providers({ children }: { children: ReactNode }) {
 
         startTransition(() => {
           setUser(nextUser)
-          setPlayerState((current) => buildPlayerStateFromCloud(bundle, current))
+          setPlayerState((current) =>
+            awardLoginStreakOnce(
+              buildPlayerStateFromCloud(bundle, current),
+              nextUser.id,
+              loginAwardedAt
+            )
+          )
           setActiveStorageKey(storageKey)
           setCloudHydratedUserId(nextUser.id)
         })
@@ -637,19 +683,12 @@ export function Providers({ children }: { children: ReactNode }) {
             isDaily: false,
             completedAt: params.completedAt
           })
-          const currentDate = getDateKey(params.completedAt)
 
           return {
             ...current,
             mascotState: "celebrating",
             campaignState: nextCampaignState,
-            stats: {
-              ...nextStats,
-              streak:
-                current.campaignState.lastActiveDate === currentDate
-                  ? current.stats.streak
-                  : current.stats.streak + 1
-            }
+            stats: nextStats
           }
         })
 
