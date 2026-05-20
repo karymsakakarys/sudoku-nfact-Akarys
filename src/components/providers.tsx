@@ -276,9 +276,11 @@ export function Providers({ children }: { children: ReactNode }) {
   const [cloudHydratedUserId, setCloudHydratedUserId] = useState<string | null>(null)
   const streakClaimedRef = useRef<Set<string>>(new Set())
   const signOutInFlightRef = useRef(false)
+  const activeAuthUserIdRef = useRef<string | null>(null)
   const isAuthorPreviewAccount = user?.email?.toLowerCase() === authorPreviewEmail
 
   function resetToGuestState() {
+    activeAuthUserIdRef.current = null
     setUser(null)
     setCloudHydratedUserId(null)
     setActiveStorageKey(guestStateStorageKey)
@@ -317,11 +319,12 @@ export function Providers({ children }: { children: ReactNode }) {
   }
 
   const applyAuthenticatedSession = useCallback(
-    async (nextUser: User, options?: { awardedAt?: string }) => {
+    (nextUser: User, options?: { awardedAt?: string }) => {
       if (signOutInFlightRef.current) {
         return
       }
 
+      activeAuthUserIdRef.current = nextUser.id
       const storageKey = getUserStateStorageKey(nextUser.id)
       const loginAwardedAt = options?.awardedAt ?? new Date().toISOString()
       const bootstrapState = awardLoginStreakOnce(
@@ -338,34 +341,42 @@ export function Providers({ children }: { children: ReactNode }) {
         setAuthLoading(false)
       })
 
-      try {
-        const bundle = await fetchProfileBundle(createClient(), nextUser.id)
+      void (async () => {
+        try {
+          const bundle = await fetchProfileBundle(createClient(), nextUser.id)
 
-        if (signOutInFlightRef.current) {
-          return
-        }
+          if (
+            signOutInFlightRef.current ||
+            activeAuthUserIdRef.current !== nextUser.id
+          ) {
+            return
+          }
 
-        startTransition(() => {
-          setUser(nextUser)
-          setPlayerState((current) =>
-            awardLoginStreakOnce(
-              buildPlayerStateFromCloud(bundle, current),
-              nextUser.id,
-              loginAwardedAt
+          startTransition(() => {
+            setUser(nextUser)
+            setPlayerState((current) =>
+              awardLoginStreakOnce(
+                buildPlayerStateFromCloud(bundle, current),
+                nextUser.id,
+                loginAwardedAt
+              )
             )
-          )
-          setActiveStorageKey(storageKey)
-          setCloudHydratedUserId(nextUser.id)
-        })
-      } catch {
-        if (signOutInFlightRef.current) {
-          return
-        }
+            setActiveStorageKey(storageKey)
+            setCloudHydratedUserId(nextUser.id)
+          })
+        } catch {
+          if (
+            signOutInFlightRef.current ||
+            activeAuthUserIdRef.current !== nextUser.id
+          ) {
+            return
+          }
 
-        startTransition(() => {
-          setCloudHydratedUserId(nextUser.id)
-        })
-      }
+          startTransition(() => {
+            setCloudHydratedUserId(nextUser.id)
+          })
+        }
+      })()
     },
     []
   )
@@ -397,7 +408,8 @@ export function Providers({ children }: { children: ReactNode }) {
         }
         if (sessionUser) {
           initialAuthResolved = true
-          return applyAuthenticatedSession(sessionUser)
+          applyAuthenticatedSession(sessionUser)
+          return undefined
         }
 
         syncSignedOutState()
@@ -430,7 +442,7 @@ export function Providers({ children }: { children: ReactNode }) {
 
         if (session?.user) {
           initialAuthResolved = true
-          await applyAuthenticatedSession(session.user)
+          applyAuthenticatedSession(session.user)
           return
         }
 
