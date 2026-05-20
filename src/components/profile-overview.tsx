@@ -7,10 +7,10 @@ import { useAppState } from "@/components/providers"
 import { formatCompactNumber } from "@/lib/utils/date"
 
 export function ProfileOverview() {
-  const { playerState, user, authLoading, supabaseReady, updateProfile, signOut } = useAppState()
+  const { playerState, user, authLoading, signOutInFlight, supabaseReady, updateProfile, signOut } = useAppState()
   const [displayName, setDisplayName] = useState(playerState.displayName)
   const [city, setCity] = useState(playerState.city)
-  const signOutBusy = authLoading && !user
+  const signOutBusy = signOutInFlight || (authLoading && !user)
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -22,7 +22,6 @@ export function ProfileOverview() {
 
   async function handleSignOut() {
     await signOut()
-    window.location.replace("/login")
   }
 
   return (
@@ -103,7 +102,7 @@ export function ProfileOverview() {
             disabled={signOutBusy}
             className="secondary-button mt-4 w-full rounded-full px-4 py-3 text-sm font-semibold disabled:opacity-70"
           >
-            {signOutBusy ? "Проверяем сессию..." : "Выйти"}
+            {signOutBusy ? "Выходим..." : "Выйти"}
           </button>
         ) : null}
       </section>

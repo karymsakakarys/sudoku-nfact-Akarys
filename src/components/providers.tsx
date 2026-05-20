@@ -11,7 +11,7 @@ import {
   useRef,
   useState
 } from "react"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { User } from "@supabase/supabase-js"
 import {
   AppPlayerState,
@@ -46,6 +46,7 @@ interface AppContextValue {
   user: User | null
   supabaseReady: boolean
   authLoading: boolean
+  signOutInFlight: boolean
   signIn: (email: string, password: string) => Promise<string | null>
   signUp: (email: string, password: string) => Promise<string | null>
   signOut: () => Promise<void>
@@ -254,15 +255,18 @@ function buildPlayerStateFromCloud(
 export function Providers({ children }: { children: ReactNode }) {
   const authorPreviewEmail = "author@sudokumindgarden.app"
   const pathname = usePathname()
+  const router = useRouter()
   const routeIsPublic = isPublicRoute(pathname)
   const supabaseReady = isSupabaseConfigured()
   const [playerState, setPlayerState] = useState(defaultPlayerState)
   const [hydrated, setHydrated] = useState(false)
   const [authLoading, setAuthLoading] = useState(supabaseReady)
+  const [signOutInFlight, setSignOutInFlight] = useState(false)
   const [user, setUser] = useState<User | null>(null)
   const [activeStorageKey, setActiveStorageKey] = useState(guestStateStorageKey)
   const [cloudHydratedUserId, setCloudHydratedUserId] = useState<string | null>(null)
   const streakClaimedRef = useRef<Set<string>>(new Set())
+  const signOutInFlightRef = useRef(false)
   const isAuthorPreviewAccount = user?.email?.toLowerCase() === authorPreviewEmail
 
   function resetToGuestState() {
@@ -321,6 +325,10 @@ export function Providers({ children }: { children: ReactNode }) {
     }
 
     const syncSignedInState = async (nextUser: User) => {
+      if (signOutInFlightRef.current) {
+        return
+      }
+
       const storageKey = getUserStateStorageKey(nextUser.id)
       const loginAwardedAt = new Date().toISOString()
       const bootstrapState = awardLoginStreakOnce(
@@ -371,6 +379,10 @@ export function Providers({ children }: { children: ReactNode }) {
       .getSession()
       .then(({ data }) => {
         const sessionUser = data.session?.user
+        if (signOutInFlightRef.current) {
+          syncSignedOutState()
+          return undefined
+        }
         if (sessionUser) {
           return syncSignedInState(sessionUser)
         }
@@ -396,6 +408,13 @@ export function Providers({ children }: { children: ReactNode }) {
       data: { subscription }
     } = supabase.auth.onAuthStateChange(async (_, session) => {
       try {
+        if (signOutInFlightRef.current) {
+          if (!session?.user) {
+            syncSignedOutState()
+          }
+          return
+        }
+
         if (session?.user) {
           await syncSignedInState(session.user)
           return
@@ -436,6 +455,7 @@ export function Providers({ children }: { children: ReactNode }) {
       user,
       supabaseReady,
       authLoading,
+      signOutInFlight,
       async signIn(email, password) {
         if (!supabaseReady) {
           return "Добавь ключи Supabase в .env.local, чтобы включить вход."
@@ -535,23 +555,34 @@ export function Providers({ children }: { children: ReactNode }) {
           startTransition(() => {
             resetToGuestState()
           })
+          router.replace("/login")
           return
         }
 
-        await Promise.allSettled([
-          fetch("/auth/logout", {
+        signOutInFlightRef.current = true
+        setSignOutInFlight(true)
+        setAuthLoading(true)
+
+        try {
+          await fetch("/auth/logout", {
             method: "POST",
             credentials: "include",
             cache: "no-store"
-          }),
-          createClient().auth.signOut({
+          })
+
+          await createClient().auth.signOut({
             scope: "local"
           })
-        ])
+        } finally {
+          signOutInFlightRef.current = false
+          setSignOutInFlight(false)
+        }
 
         startTransition(() => {
           resetToGuestState()
         })
+
+        router.replace("/login")
       },
       setThemeMode() {
         setPlayerState((current) => ({
@@ -765,7 +796,7 @@ export function Providers({ children }: { children: ReactNode }) {
         }))
       }
     }),
-    [authLoading, isAuthorPreviewAccount, playerState, supabaseReady, user]
+    [authLoading, isAuthorPreviewAccount, playerState, router, signOutInFlight, supabaseReady, user]
   )
 
   const themeTokens = getThemeTokens(playerState.equippedTheme, "light")
