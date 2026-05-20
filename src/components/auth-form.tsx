@@ -3,7 +3,6 @@
 import Link from "next/link"
 import { FormEvent, useEffect, useRef, useState } from "react"
 import { useAppState } from "@/components/providers"
-import { createClient } from "@/lib/supabase/client"
 
 type AuthMode = "login" | "register"
 
@@ -55,6 +54,7 @@ export function AuthForm({
   const authorPreviewEmail = "author@sudokumindgarden.app"
   const authorPreviewPassword = "Preview123!"
   const { signIn, signUp, supabaseReady, authLoading, signOutInFlight, user } = useAppState()
+  const [displayName, setDisplayName] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [status, setStatus] = useState<"idle" | "submitting" | "success" | "error">("idle")
@@ -67,27 +67,11 @@ export function AuthForm({
   const passwordInputRef = useRef<HTMLInputElement | null>(null)
   const copy = modeCopy[mode]
   const normalizedNextPath = resolvedNextPath.startsWith("/") ? resolvedNextPath : "/profile"
+  const authContinuePath = `/auth/continue?next=${encodeURIComponent(normalizedNextPath)}`
   const alternateHref =
     normalizedNextPath !== "/profile"
       ? `${copy.alternateHref}?next=${encodeURIComponent(normalizedNextPath)}`
       : copy.alternateHref
-
-  async function waitForConfirmedSession(timeoutMs = 8000) {
-    const startedAt = Date.now()
-    const supabase = createClient()
-
-    while (Date.now() - startedAt < timeoutMs) {
-      const { data } = await supabase.auth.getSession()
-
-      if (data.session?.user) {
-        return true
-      }
-
-      await new Promise((resolve) => window.setTimeout(resolve, 250))
-    }
-
-    return false
-  }
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -139,24 +123,17 @@ export function AuthForm({
       return
     }
 
-    setStatus("submitting")
-    const authPromise = mode === "login" ? signIn(email, password) : signUp(email, password)
-    const sessionWatcher = waitForConfirmedSession()
-    const firstResult = await Promise.race([
-      authPromise.then((error) => ({ type: "auth" as const, error })),
-      sessionWatcher.then((confirmed) => ({ type: "session" as const, confirmed }))
-    ])
-
-    if (firstResult.type === "session" && firstResult.confirmed) {
-      hasNavigatedRef.current = true
-      setStatus("success")
-      setMessage(copy.successMessage)
-      window.location.assign(normalizedNextPath)
+    if (mode === "register" && !displayName.trim()) {
+      setStatus("error")
+      setMessage("Введи имя игрока.")
       return
     }
 
+    setStatus("submitting")
     const error =
-      firstResult.type === "auth" ? firstResult.error : await authPromise
+      mode === "login"
+        ? await signIn(email, password)
+        : await signUp(email, password, displayName)
 
     if (error) {
       setStatus("error")
@@ -167,7 +144,7 @@ export function AuthForm({
     hasNavigatedRef.current = true
     setStatus("success")
     setMessage(copy.successMessage)
-    window.location.assign(normalizedNextPath)
+    window.location.assign(authContinuePath)
   }
 
   function handleAuthorPreviewFill() {
@@ -193,6 +170,19 @@ export function AuthForm({
         <p className="mt-3 text-soft">{copy.description}</p>
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+          {mode === "register" ? (
+            <label className="panel-surface block rounded-[24px] p-4">
+              <span className="text-xs uppercase tracking-[0.2em] text-soft">Имя игрока</span>
+              <input
+                type="text"
+                required
+                value={displayName}
+                onChange={(event) => setDisplayName(event.target.value)}
+                placeholder="Как тебя показать в профиле и рейтинге"
+                className="mt-3 w-full bg-transparent text-lg outline-none"
+              />
+            </label>
+          ) : null}
           <label className="panel-surface block rounded-[24px] p-4">
             <span className="text-xs uppercase tracking-[0.2em] text-soft">Email</span>
             <input

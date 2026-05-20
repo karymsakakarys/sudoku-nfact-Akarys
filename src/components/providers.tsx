@@ -50,7 +50,7 @@ interface AppContextValue {
   signOutInFlight: boolean
   logoutRedirecting: boolean
   signIn: (email: string, password: string) => Promise<string | null>
-  signUp: (email: string, password: string) => Promise<string | null>
+  signUp: (email: string, password: string, displayName?: string) => Promise<string | null>
   signOut: () => Promise<void>
   setThemeMode: (mode: ThemeMode) => void
   equipTheme: (themeId: ThemeId) => void
@@ -318,8 +318,30 @@ export function Providers({ children }: { children: ReactNode }) {
     return applyDailyLoginStreak(baseState, awardedAt)
   }
 
+  function seedAuthenticatedProfile(
+    baseState: AppPlayerState,
+    profileSeed?: Partial<Pick<AppPlayerState, "displayName" | "city" | "avatarSeed">>
+  ) {
+    if (!profileSeed) {
+      return baseState
+    }
+
+    return {
+      ...baseState,
+      displayName: profileSeed.displayName ?? baseState.displayName,
+      city: profileSeed.city ?? baseState.city,
+      avatarSeed: profileSeed.avatarSeed ?? baseState.avatarSeed
+    }
+  }
+
   const applyAuthenticatedSession = useCallback(
-    (nextUser: User, options?: { awardedAt?: string }) => {
+    (
+      nextUser: User,
+      options?: {
+        awardedAt?: string
+        profileSeed?: Partial<Pick<AppPlayerState, "displayName" | "city" | "avatarSeed">>
+      }
+    ) => {
       if (signOutInFlightRef.current) {
         return
       }
@@ -327,8 +349,9 @@ export function Providers({ children }: { children: ReactNode }) {
       activeAuthUserIdRef.current = nextUser.id
       const storageKey = getUserStateStorageKey(nextUser.id)
       const loginAwardedAt = options?.awardedAt ?? new Date().toISOString()
+      const seededState = seedAuthenticatedProfile(readUserPlayerState(nextUser.id), options?.profileSeed)
       const bootstrapState = awardLoginStreakOnce(
-        readUserPlayerState(nextUser.id),
+        seededState,
         nextUser.id,
         loginAwardedAt
       )
@@ -527,12 +550,17 @@ export function Providers({ children }: { children: ReactNode }) {
           return "Не удалось войти. Проверь сеть и попробуй снова."
         }
       },
-      async signUp(email, password) {
+      async signUp(email, password, displayName) {
         if (!supabaseReady) {
           return "Добавь ключи Supabase в .env.local, чтобы включить регистрацию."
         }
 
         const supabase = createClient()
+        const normalizedDisplayName = displayName?.trim()
+
+        if (!normalizedDisplayName) {
+          return "Введи имя игрока."
+        }
 
         try {
           const { data, error } = await supabase.auth.signUp({
@@ -541,7 +569,8 @@ export function Providers({ children }: { children: ReactNode }) {
             options: {
               emailRedirectTo: getSupabaseRedirectUrl("/auth/confirm?next=/profile"),
               data: {
-                avatar_seed: "sudoku-wave"
+                avatar_seed: "sudoku-wave",
+                display_name: normalizedDisplayName
               }
             }
           })
@@ -575,7 +604,11 @@ export function Providers({ children }: { children: ReactNode }) {
             return "Аккаунт создан, но в Supabase включено подтверждение email. Отключи Confirm email, если нужен мгновенный вход."
           }
 
-          await applyAuthenticatedSession(data.session.user)
+          await applyAuthenticatedSession(data.session.user, {
+            profileSeed: {
+              displayName: normalizedDisplayName
+            }
+          })
 
           return null
         } catch {

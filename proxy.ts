@@ -3,7 +3,7 @@ import { NextResponse } from "next/server"
 import { updateSession } from "@/lib/supabase/proxy"
 import { isSupabaseConfigured } from "@/lib/supabase/helpers"
 
-const publicRoutes = ["/login", "/register", "/auth/confirm", "/auth/error"]
+const publicRoutes = ["/login", "/register", "/auth", "/auth/confirm", "/auth/error"]
 
 export async function proxy(request: NextRequest) {
   if (!isSupabaseConfigured()) {
