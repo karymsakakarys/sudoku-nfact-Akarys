@@ -88,7 +88,7 @@ export function AuthForm({
   }, [nextPath])
 
   useEffect(() => {
-    if (!user || authLoading || signOutInFlight) {
+    if (!user || authLoading || signOutInFlight || status === "submitting") {
       return
     }
 
@@ -100,22 +100,7 @@ export function AuthForm({
     setStatus("idle")
     setMessage("")
     window.location.replace(normalizedNextPath)
-  }, [authLoading, normalizedNextPath, signOutInFlight, user])
-
-  useEffect(() => {
-    if (status !== "submitting") {
-      return
-    }
-
-    const timer = window.setTimeout(() => {
-      setStatus("error")
-      setMessage("Сессия не подтвердилась вовремя. Обнови страницу и попробуй снова.")
-    }, 8000)
-
-    return () => {
-      window.clearTimeout(timer)
-    }
-  }, [status])
+  }, [authLoading, normalizedNextPath, signOutInFlight, status, user])
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -146,8 +131,10 @@ export function AuthForm({
       return
     }
 
+    hasNavigatedRef.current = true
     setStatus("success")
     setMessage(copy.successMessage)
+    window.location.assign(normalizedNextPath)
   }
 
   function handleAuthorPreviewFill() {
