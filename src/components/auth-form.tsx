@@ -1,8 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { FormEvent, useEffect, useState } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { FormEvent, useEffect, useRef, useState } from "react"
 import { useAppState } from "@/components/providers"
 
 type AuthMode = "login" | "register"
@@ -45,31 +44,59 @@ const modeCopy: Record<
   }
 }
 
-export function AuthForm({ mode }: { mode: AuthMode }) {
+export function AuthForm({
+  mode,
+  nextPath = "/profile"
+}: {
+  mode: AuthMode
+  nextPath?: string
+}) {
   const { signIn, signUp, supabaseReady, authLoading, user } = useAppState()
-  const router = useRouter()
-  const searchParams = useSearchParams()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [status, setStatus] = useState<"idle" | "submitting" | "success" | "error">("idle")
   const [message, setMessage] = useState("")
+  const [resolvedNextPath, setResolvedNextPath] = useState(
+    nextPath.startsWith("/") ? nextPath : "/profile"
+  )
+  const hasNavigatedRef = useRef(false)
   const copy = modeCopy[mode]
-  const requestedNext = searchParams.get("next")
-  const nextPath = requestedNext && requestedNext.startsWith("/") ? requestedNext : "/profile"
-  const alternateHref = requestedNext
-    ? `${copy.alternateHref}?next=${encodeURIComponent(nextPath)}`
-    : copy.alternateHref
+  const normalizedNextPath = resolvedNextPath.startsWith("/") ? resolvedNextPath : "/profile"
+  const alternateHref =
+    normalizedNextPath !== "/profile"
+      ? `${copy.alternateHref}?next=${encodeURIComponent(normalizedNextPath)}`
+      : copy.alternateHref
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return
+    }
+
+    const params = new URLSearchParams(window.location.search)
+    const candidate = params.get("next")
+
+    if (candidate?.startsWith("/")) {
+      setResolvedNextPath(candidate)
+      return
+    }
+
+    setResolvedNextPath(nextPath.startsWith("/") ? nextPath : "/profile")
+  }, [nextPath])
 
   useEffect(() => {
     if (!user || authLoading) {
       return
     }
 
+    if (hasNavigatedRef.current) {
+      return
+    }
+
+    hasNavigatedRef.current = true
     setStatus("idle")
     setMessage("")
-    router.replace(nextPath)
-    router.refresh()
-  }, [authLoading, nextPath, router, user])
+    window.location.replace(normalizedNextPath)
+  }, [authLoading, normalizedNextPath, user])
 
   useEffect(() => {
     if (status !== "submitting") {
@@ -90,10 +117,10 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
     event.preventDefault()
 
     if (user) {
+      hasNavigatedRef.current = true
       setStatus("idle")
       setMessage("")
-      router.replace(nextPath)
-      router.refresh()
+      window.location.replace(normalizedNextPath)
       return
     }
 
@@ -112,10 +139,6 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
     if (error) {
       setStatus("error")
       setMessage(error)
-      return
-    }
-
-    if (mode === "login") {
       return
     }
 

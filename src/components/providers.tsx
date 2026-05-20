@@ -294,22 +294,31 @@ export function Providers({ children }: { children: ReactNode }) {
         setUser(nextUser)
         setPlayerState(bootstrapState)
         setActiveStorageKey(storageKey)
-        setCloudHydratedUserId(nextUser.id)
+        setCloudHydratedUserId(null)
         setAuthLoading(false)
       })
 
-      const bundle = await fetchProfileBundle(supabase, nextUser.id)
-      if (cancelled) {
-        return
+      try {
+        const bundle = await fetchProfileBundle(supabase, nextUser.id)
+        if (cancelled) {
+          return
+        }
+
+        startTransition(() => {
+          setUser(nextUser)
+          setPlayerState((current) => buildPlayerStateFromCloud(bundle, current))
+          setActiveStorageKey(storageKey)
+          setCloudHydratedUserId(nextUser.id)
+        })
+      } catch {
+        if (cancelled) {
+          return
+        }
+
+        startTransition(() => {
+          setCloudHydratedUserId(nextUser.id)
+        })
       }
-
-      startTransition(() => {
-        setUser(nextUser)
-        setPlayerState((current) => buildPlayerStateFromCloud(bundle, current))
-        setActiveStorageKey(storageKey)
-        setCloudHydratedUserId(nextUser.id)
-        setAuthLoading(false)
-      })
     }
 
     supabase.auth
