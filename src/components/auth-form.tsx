@@ -53,7 +53,7 @@ export function AuthForm({
 }) {
   const authorPreviewEmail = "author@sudokumindgarden.app"
   const authorPreviewPassword = "Preview123!"
-  const { signIn, signUp, supabaseReady, authLoading, user } = useAppState()
+  const { signIn, signUp, supabaseReady, authLoading, signOutInFlight, user } = useAppState()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [status, setStatus] = useState<"idle" | "submitting" | "success" | "error">("idle")
@@ -88,7 +88,7 @@ export function AuthForm({
   }, [nextPath])
 
   useEffect(() => {
-    if (!user || authLoading) {
+    if (!user || authLoading || signOutInFlight) {
       return
     }
 
@@ -100,7 +100,7 @@ export function AuthForm({
     setStatus("idle")
     setMessage("")
     window.location.replace(normalizedNextPath)
-  }, [authLoading, normalizedNextPath, user])
+  }, [authLoading, normalizedNextPath, signOutInFlight, user])
 
   useEffect(() => {
     if (status !== "submitting") {

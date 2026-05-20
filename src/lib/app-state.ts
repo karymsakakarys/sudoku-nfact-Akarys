@@ -54,14 +54,15 @@ export const defaultPlayerState: AppPlayerState = {
     bestTimeMs: null,
     timesCompleted: 0
   },
-  displayName: "Mind Player",
-  city: "Алматы",
+  displayName: "Guest",
+  city: "",
   avatarSeed: "sudoku-wave",
   mascotState: "idle"
 }
 
 export const defaultAuthenticatedPlayerState: AppPlayerState = {
   ...defaultPlayerState,
+  displayName: "Mind Player",
   stats: {
     ...defaultPlayerStats,
     totalXp: 0,
@@ -80,6 +81,14 @@ export const defaultAuthenticatedPlayerState: AppPlayerState = {
     }
   },
   city: ""
+}
+
+function normalizeGuestIdentity(state: AppPlayerState): AppPlayerState {
+  return {
+    ...state,
+    displayName: "Guest",
+    city: ""
+  }
 }
 
 export function isSuperLevelUnlocked(state: CampaignState) {
@@ -155,7 +164,7 @@ export function normalizePlayerState(
     stats.lastDailyCompletedAt = null
   }
 
-  return {
+  const normalizedState: AppPlayerState = {
     ...fallback,
     ...source,
     themeMode: "light",
@@ -182,4 +191,10 @@ export function normalizePlayerState(
     stats,
     campaignState
   }
+
+  if (fallback === defaultPlayerState) {
+    return normalizeGuestIdentity(normalizedState)
+  }
+
+  return normalizedState
 }

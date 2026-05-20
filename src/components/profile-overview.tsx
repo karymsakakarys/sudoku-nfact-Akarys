@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { FormEvent, useState } from "react"
 import { Flame, UserRound } from "lucide-react"
 import { Mascot } from "@/components/mascot"
@@ -7,7 +8,16 @@ import { useAppState } from "@/components/providers"
 import { formatCompactNumber } from "@/lib/utils/date"
 
 export function ProfileOverview() {
-  const { playerState, user, authLoading, signOutInFlight, supabaseReady, updateProfile, signOut } = useAppState()
+  const {
+    playerState,
+    user,
+    authLoading,
+    signOutInFlight,
+    logoutRedirecting,
+    supabaseReady,
+    updateProfile,
+    signOut
+  } = useAppState()
   const [displayName, setDisplayName] = useState(playerState.displayName)
   const [city, setCity] = useState(playerState.city)
   const signOutBusy = signOutInFlight || (authLoading && !user)
@@ -22,6 +32,30 @@ export function ProfileOverview() {
 
   async function handleSignOut() {
     await signOut()
+  }
+
+  if (!user) {
+    return (
+      <section className="app-surface rounded-[30px] p-6 sm:p-8">
+        <p className="map-brow">Guest</p>
+        <h1 className="mt-3 text-3xl font-semibold">
+          {logoutRedirecting ? "Выходим из аккаунта" : "Гостевой режим"}
+        </h1>
+        <p className="mt-3 text-soft">
+          {logoutRedirecting
+            ? "Очищаем сессию и возвращаем тебя на экран входа."
+            : "Профиль доступен только после входа. Локальный guest-state не будет выглядеть как другой аккаунт."}
+        </p>
+        <div className="mt-6 flex flex-wrap gap-3">
+          <Link href="/login" className="primary-button rounded-full px-5 py-3 text-sm font-semibold">
+            Войти
+          </Link>
+          <Link href="/" className="secondary-button rounded-full px-5 py-3 text-sm font-semibold">
+            На карту
+          </Link>
+        </div>
+      </section>
+    )
   }
 
   return (

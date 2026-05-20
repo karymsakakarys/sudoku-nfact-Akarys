@@ -47,6 +47,7 @@ interface AppContextValue {
   supabaseReady: boolean
   authLoading: boolean
   signOutInFlight: boolean
+  logoutRedirecting: boolean
   signIn: (email: string, password: string) => Promise<string | null>
   signUp: (email: string, password: string) => Promise<string | null>
   signOut: () => Promise<void>
@@ -86,6 +87,7 @@ interface AppContextValue {
 
 const AppContext = createContext<AppContextValue | null>(null)
 const publicRoutes = ["/login", "/register", "/auth", "/auth/confirm", "/auth/error", "/leaderboard"]
+const protectedRoutes = ["/profile"]
 
 function getDateKey(input: string) {
   return input.slice(0, 10)
@@ -93,6 +95,10 @@ function getDateKey(input: string) {
 
 function isPublicRoute(pathname: string) {
   return publicRoutes.some((route) => pathname === route || pathname.startsWith(`${route}/`))
+}
+
+function isProtectedRoute(pathname: string) {
+  return protectedRoutes.some((route) => pathname === route || pathname.startsWith(`${route}/`))
 }
 
 function readStoredPlayerState(storageKey: string, fallback: AppPlayerState) {
@@ -257,11 +263,13 @@ export function Providers({ children }: { children: ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
   const routeIsPublic = isPublicRoute(pathname)
+  const routeIsProtected = isProtectedRoute(pathname)
   const supabaseReady = isSupabaseConfigured()
   const [playerState, setPlayerState] = useState(defaultPlayerState)
   const [hydrated, setHydrated] = useState(false)
   const [authLoading, setAuthLoading] = useState(supabaseReady)
   const [signOutInFlight, setSignOutInFlight] = useState(false)
+  const [logoutRedirecting, setLogoutRedirecting] = useState(false)
   const [user, setUser] = useState<User | null>(null)
   const [activeStorageKey, setActiveStorageKey] = useState(guestStateStorageKey)
   const [cloudHydratedUserId, setCloudHydratedUserId] = useState<string | null>(null)
@@ -449,6 +457,17 @@ export function Providers({ children }: { children: ReactNode }) {
     }
   }, [cloudHydratedUserId, hydrated, playerState, supabaseReady, user])
 
+  useEffect(() => {
+    if (!supabaseReady || authLoading || signOutInFlight || logoutRedirecting || !routeIsProtected) {
+      return
+    }
+
+    if (!user) {
+      const nextQuery = pathname.startsWith("/") ? `?next=${encodeURIComponent(pathname)}` : ""
+      router.replace(`/login${nextQuery}`)
+    }
+  }, [authLoading, logoutRedirecting, pathname, routeIsProtected, router, signOutInFlight, supabaseReady, user])
+
   const value = useMemo<AppContextValue>(
     () => ({
       playerState,
@@ -456,6 +475,7 @@ export function Providers({ children }: { children: ReactNode }) {
       supabaseReady,
       authLoading,
       signOutInFlight,
+      logoutRedirecting,
       async signIn(email, password) {
         if (!supabaseReady) {
           return "Добавь ключи Supabase в .env.local, чтобы включить вход."
@@ -552,37 +572,43 @@ export function Providers({ children }: { children: ReactNode }) {
       },
       async signOut() {
         if (!supabaseReady) {
+          setLogoutRedirecting(true)
           startTransition(() => {
             resetToGuestState()
           })
           router.replace("/login")
+          window.setTimeout(() => {
+            setLogoutRedirecting(false)
+          }, 0)
           return
         }
 
         signOutInFlightRef.current = true
         setSignOutInFlight(true)
-        setAuthLoading(true)
-
-        try {
-          await fetch("/auth/logout", {
-            method: "POST",
-            credentials: "include",
-            cache: "no-store"
-          })
-
-          await createClient().auth.signOut({
-            scope: "local"
-          })
-        } finally {
-          signOutInFlightRef.current = false
-          setSignOutInFlight(false)
-        }
+        setLogoutRedirecting(true)
 
         startTransition(() => {
           resetToGuestState()
         })
 
         router.replace("/login")
+
+        try {
+          await fetch("/auth/logout", {
+            method: "POST",
+            credentials: "include",
+            cache: "no-store"
+          }).catch(() => undefined)
+
+          await createClient().auth.signOut({
+            scope: "local"
+          }).catch(() => undefined)
+        } finally {
+          signOutInFlightRef.current = false
+          setSignOutInFlight(false)
+          resetToGuestState()
+          setLogoutRedirecting(false)
+        }
       },
       setThemeMode() {
         setPlayerState((current) => ({
@@ -796,11 +822,12 @@ export function Providers({ children }: { children: ReactNode }) {
         }))
       }
     }),
-    [authLoading, isAuthorPreviewAccount, playerState, router, signOutInFlight, supabaseReady, user]
+    [authLoading, isAuthorPreviewAccount, logoutRedirecting, playerState, router, signOutInFlight, supabaseReady, user]
   )
 
   const themeTokens = getThemeTokens(playerState.equippedTheme, "light")
-  const shouldBlockProtectedRoute = supabaseReady && authLoading && !routeIsPublic
+  const shouldBlockProtectedRoute =
+    supabaseReady && authLoading && routeIsProtected && !signOutInFlight && !logoutRedirecting && !routeIsPublic
 
   return (
     <AppContext.Provider value={value}>
