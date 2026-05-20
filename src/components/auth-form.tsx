@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { FormEvent, useEffect, useRef, useState } from "react"
 import { useAppState } from "@/components/providers"
+import { createClient } from "@/lib/supabase/client"
 
 type AuthMode = "login" | "register"
 
@@ -71,6 +72,23 @@ export function AuthForm({
       ? `${copy.alternateHref}?next=${encodeURIComponent(normalizedNextPath)}`
       : copy.alternateHref
 
+  async function waitForConfirmedSession(timeoutMs = 8000) {
+    const startedAt = Date.now()
+    const supabase = createClient()
+
+    while (Date.now() - startedAt < timeoutMs) {
+      const { data } = await supabase.auth.getSession()
+
+      if (data.session?.user) {
+        return true
+      }
+
+      await new Promise((resolve) => window.setTimeout(resolve, 250))
+    }
+
+    return false
+  }
+
   useEffect(() => {
     if (typeof window === "undefined") {
       return
@@ -122,8 +140,23 @@ export function AuthForm({
     }
 
     setStatus("submitting")
+    const authPromise = mode === "login" ? signIn(email, password) : signUp(email, password)
+    const sessionWatcher = waitForConfirmedSession()
+    const firstResult = await Promise.race([
+      authPromise.then((error) => ({ type: "auth" as const, error })),
+      sessionWatcher.then((confirmed) => ({ type: "session" as const, confirmed }))
+    ])
+
+    if (firstResult.type === "session" && firstResult.confirmed) {
+      hasNavigatedRef.current = true
+      setStatus("success")
+      setMessage(copy.successMessage)
+      window.location.assign(normalizedNextPath)
+      return
+    }
+
     const error =
-      mode === "login" ? await signIn(email, password) : await signUp(email, password)
+      firstResult.type === "auth" ? firstResult.error : await authPromise
 
     if (error) {
       setStatus("error")
