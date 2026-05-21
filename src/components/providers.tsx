@@ -88,7 +88,50 @@ interface AppContextValue {
 
 const AppContext = createContext<AppContextValue | null>(null)
 const publicRoutes = ["/login", "/register", "/auth", "/auth/confirm", "/auth/error", "/leaderboard"]
-const protectedRoutes = ["/profile"]
+
+function getSupabaseProjectRef() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  if (!supabaseUrl) {
+    return null
+  }
+
+  try {
+    return new URL(supabaseUrl).hostname.split(".")[0] ?? null
+  } catch {
+    return null
+  }
+}
+
+function isInvalidRefreshTokenErrorMessage(message?: string | null) {
+  return (message ?? "").toLowerCase().includes("invalid refresh token")
+}
+
+function clearSupabaseClientStorage() {
+  if (typeof window === "undefined") {
+    return
+  }
+
+  const projectRef = getSupabaseProjectRef()
+  const storageTargets = [window.localStorage, window.sessionStorage]
+
+  storageTargets.forEach((storage) => {
+    const keysToRemove: string[] = []
+
+    for (let index = 0; index < storage.length; index += 1) {
+      const key = storage.key(index)
+      if (!key) {
+        continue
+      }
+
+      const matchesProjectKey = projectRef ? key.startsWith(`sb-${projectRef}-`) : key.startsWith("sb-")
+      if (matchesProjectKey && key.includes("auth-token")) {
+        keysToRemove.push(key)
+      }
+    }
+
+    keysToRemove.forEach((key) => storage.removeItem(key))
+  })
+}
 
 function getDateKey(input: string) {
   return input.slice(0, 10)
@@ -98,8 +141,8 @@ function isPublicRoute(pathname: string) {
   return publicRoutes.some((route) => pathname === route || pathname.startsWith(`${route}/`))
 }
 
-function isProtectedRoute(pathname: string) {
-  return protectedRoutes.some((route) => pathname === route || pathname.startsWith(`${route}/`))
+function requiresAuthenticatedRoute(pathname: string) {
+  return !isPublicRoute(pathname)
 }
 
 function readStoredPlayerState(storageKey: string, fallback: AppPlayerState) {
@@ -264,7 +307,7 @@ export function Providers({ children }: { children: ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
   const routeIsPublic = isPublicRoute(pathname)
-  const routeIsProtected = isProtectedRoute(pathname)
+  const routeRequiresAuth = requiresAuthenticatedRoute(pathname)
   const supabaseReady = isSupabaseConfigured()
   const [playerState, setPlayerState] = useState(defaultPlayerState)
   const [hydrated, setHydrated] = useState(false)
@@ -287,6 +330,11 @@ export function Providers({ children }: { children: ReactNode }) {
     setPlayerState(readGuestPlayerState())
     setAuthLoading(false)
   }
+
+  const clearBrokenSupabaseSession = useCallback(async () => {
+    clearSupabaseClientStorage()
+    await createClient().auth.signOut({ scope: "local" }).catch(() => undefined)
+  }, [])
 
   useEffect(() => {
     if (!supabaseReady) {
@@ -423,7 +471,15 @@ export function Providers({ children }: { children: ReactNode }) {
 
     supabase.auth
       .getSession()
-      .then(({ data }) => {
+      .then(async ({ data, error }) => {
+        if (error && isInvalidRefreshTokenErrorMessage(error.message)) {
+          await clearBrokenSupabaseSession()
+          if (!cancelled) {
+            syncSignedOutState()
+          }
+          return undefined
+        }
+
         const sessionUser = data.session?.user
         if (signOutInFlightRef.current) {
           syncSignedOutState()
@@ -438,7 +494,10 @@ export function Providers({ children }: { children: ReactNode }) {
         syncSignedOutState()
         return undefined
       })
-      .catch(() => {
+      .catch(async (error: { message?: string } | undefined) => {
+        if (isInvalidRefreshTokenErrorMessage(error?.message)) {
+          await clearBrokenSupabaseSession()
+        }
         if (!cancelled) {
           syncSignedOutState()
         }
@@ -482,7 +541,7 @@ export function Providers({ children }: { children: ReactNode }) {
       window.clearTimeout(initialAuthTimer)
       subscription.unsubscribe()
     }
-  }, [applyAuthenticatedSession, supabaseReady])
+  }, [applyAuthenticatedSession, clearBrokenSupabaseSession, supabaseReady])
 
   useEffect(() => {
     if (!hydrated || !supabaseReady || !user || cloudHydratedUserId !== user.id) {
@@ -499,7 +558,7 @@ export function Providers({ children }: { children: ReactNode }) {
   }, [cloudHydratedUserId, hydrated, playerState, supabaseReady, user])
 
   useEffect(() => {
-    if (!supabaseReady || authLoading || signOutInFlight || logoutRedirecting || !routeIsProtected) {
+    if (!supabaseReady || authLoading || signOutInFlight || logoutRedirecting || !routeRequiresAuth) {
       return
     }
 
@@ -507,7 +566,7 @@ export function Providers({ children }: { children: ReactNode }) {
       const nextQuery = pathname.startsWith("/") ? `?next=${encodeURIComponent(pathname)}` : ""
       router.replace(`/login${nextQuery}`)
     }
-  }, [authLoading, logoutRedirecting, pathname, routeIsProtected, router, signOutInFlight, supabaseReady, user])
+  }, [authLoading, logoutRedirecting, pathname, routeRequiresAuth, router, signOutInFlight, supabaseReady, user])
 
   const value = useMemo<AppContextValue>(
     () => ({
@@ -882,7 +941,7 @@ export function Providers({ children }: { children: ReactNode }) {
 
   const themeTokens = getThemeTokens(playerState.equippedTheme, "light")
   const shouldBlockProtectedRoute =
-    supabaseReady && authLoading && routeIsProtected && !signOutInFlight && !logoutRedirecting && !routeIsPublic
+    supabaseReady && authLoading && routeRequiresAuth && !signOutInFlight && !logoutRedirecting && !routeIsPublic
 
   return (
     <AppContext.Provider value={value}>

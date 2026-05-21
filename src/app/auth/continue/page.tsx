@@ -9,6 +9,10 @@ function sleep(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms))
 }
 
+function isInvalidRefreshTokenErrorMessage(message?: string | null) {
+  return (message ?? "").toLowerCase().includes("invalid refresh token")
+}
+
 export default function AuthContinuePage() {
   const [status, setStatus] = useState<"checking" | "error">("checking")
   const [message, setMessage] = useState("Завершаем вход и синхронизируем защищенную сессию.")
@@ -35,8 +39,17 @@ export default function AuthContinuePage() {
 
       while (!cancelled && Date.now() - startedAt < 12000) {
         const {
-          data: { session }
+          data: { session },
+          error
         } = await supabase.auth.getSession()
+
+        if (error && isInvalidRefreshTokenErrorMessage(error.message)) {
+          await supabase.auth.signOut({ scope: "local" }).catch(() => undefined)
+          if (!cancelled) {
+            window.location.replace(`/login?next=${encodeURIComponent(nextPath)}`)
+          }
+          return
+        }
 
         if (!session?.user) {
           await sleep(250)

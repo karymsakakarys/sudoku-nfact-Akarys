@@ -1,57 +1,135 @@
 # Sudoku Mind Garden
 
-Sudoku Mind Garden is a premium, gamified Sudoku web app built as a daily brain-training platform rather than a plain puzzle site. The product combines calm, premium UI with retention mechanics like XP, coins, streaks, theme unlocks, Daily Challenge, and an AI Coach that explains moves in human language.
+Sudoku Mind Garden — это спокойное игровое Sudoku-приложение с картой прогресса, маскотом Brainy, ежедневными челленджами, AI Coach и экспериментальным 3D-режимом. Проект сделан не как “просто еще один Sudoku”, а как более живой продуктовый опыт: у игрока есть профиль, облачная синхронизация, рейтинг, XP, streak и визуальная персонализация.
 
-## Why this is valuable
+## Ссылка на проект
 
-- It creates a reason to come back every day through daily seeds, streaks, progression, and cosmetics.
-- It feels like a real startup MVP, not a coursework clone: there is retention, monetization framing, personalization, and leaderboard structure.
-- It is mobile-first and polished enough to demo as a serious product direction.
+- Production: [https://sudoku-mind-garden.vercel.app](https://sudoku-mind-garden.vercel.app)
+- GitHub: [https://github.com/karymsakakarys/sudoku-nfact-Akarys](https://github.com/karymsakakarys/sudoku-nfact-Akarys)
 
-## Built with
+## Для жюри / Demo access
 
-- Next.js App Router
-- TypeScript
-- TailwindCSS
-- Framer Motion
-- Supabase Auth + Database ready integration
+В проекте есть готовый author account, чтобы жюри могло сразу зайти в полную версию без ограничений и без необходимости проходить стартовый путь заново.
 
-## Core features in this MVP
+- Login: `author@sudokumindgarden.app`
+- Password: `Preview123!`
 
-- Real Sudoku generator with unique-solution puzzles
-- Four difficulties: easy, medium, hard, expert
-- Daily Challenge with shared UTC seed
-- XP, coins, level progression, streak logic
-- Notes mode, hint, undo/redo, pause, local save/resume
-- Soft mistake tracking and live conflict highlighting
-- Theme shop with `Base`, `Ocean`, and `Sunny Blue`
-- Hybrid AI Coach endpoint at `/api/coach/explain` with OpenAI + local fallback
-- Email/password auth with instant Supabase session flow
-- Global leaderboard surfaces with Supabase-ready queries and local fallbacks
-- 3D Sudoku teaser hook for a future premium mode
+Дополнительно на странице `/login` есть фиолетовая кнопка `Аккаунт автора`, которая автоматически подставляет эти данные в форму.
 
-## Routes
+## Что уже реализовано
 
-- `/` progression map
-- `/play/[nodeId]` campaign level play screen
-- `/super-level` 4-layer 3D Sudoku challenge
-- `/leaderboard` XP leaderboard
-- `/shop` Brainy cosmetics
-- `/profile` player overview
-- `/login` sign-in
-- `/register` sign-up
+### 1. Карта прогресса
 
-## Local setup
+Главный экран — это не список уровней, а кампания на карте. Игрок двигается по узлам, видит текущий прогресс и возвращается к следующим задачам как в небольшой journey-игре, а не как в сухом меню.
 
-This workspace currently does not have a package manager binary installed, so the repo was scaffolded manually around a `pnpm` workflow.
+### 2. Brainy — маскот продукта
 
-1. Install `pnpm`
-2. Copy `.env.example` to `.env.local`
-3. Add your Supabase URL, publishable key, app URL, and AI provider key
-4. Run `pnpm install`
-5. Run `pnpm dev`
+У приложения есть собственный персонаж Brainy:
 
-## Required environment variables
+- он сопровождает игрока на карте и на игровых экранах
+- у него есть разные состояния и эмоции
+- он делает интерфейс более дружелюбным и запоминающимся
+- в магазине можно покупать головные уборы именно для Brainy на карте
+
+Это важная часть айдентики продукта, а не просто декоративная картинка.
+
+### 3. Классический Sudoku gameplay
+
+В обычных уровнях уже есть полноценный игровой цикл:
+
+- генерация и прохождение Sudoku-уровней
+- ошибки и конфликт-подсветка
+- заметки
+- undo / redo
+- подсказки
+- локальное сохранение сессии
+- daily challenge
+
+### 4. AI Coach
+
+Встроенный AI Coach объясняет ходы человеческим языком. Он опирается на реальные данные текущей Sudoku-сетки и помогает понять:
+
+- почему ход конфликтует
+- почему клетка подходит или не подходит
+- что сейчас происходит в строке, колонке или блоке
+
+То есть это не просто “подсказка”, а попытка сделать обучение более понятным.
+
+### 5. Профиль, облако и рейтинг
+
+У пользователя есть:
+
+- аккаунт через email/password
+- облачная синхронизация через Supabase
+- профиль с именем игрока
+- рейтинг по XP
+- ежедневная streak-механика
+
+При регистрации пользователь сразу вводит имя игрока, поэтому в профиле и лидерборде больше не появляются случайные fallback-имена.
+
+### 6. Brainy Shop
+
+`/shop` сейчас — это не магазин тем, а аккуратный Brainy Closet:
+
+- можно покупать уборы для Brainy
+- уборы отображаются на Brainy именно на карте
+- это работает как легкая косметическая персонализация
+
+### 7. 3D Sudoku
+
+В проекте уже есть отдельный экран `/super-level` с 4-слойным 3D Sudoku.
+
+Это не заглушка, а реальный экспериментальный режим:
+
+- видны все 4 слоя
+- активный слой выдвигается вперед
+- можно переключаться между слоями как между “парящими” досками
+
+Именно этот режим мы хотим развивать дальше как более уникальную часть продукта.
+
+## Почему этот проект отличается
+
+Sudoku Mind Garden пытается решить не только задачу “дать игроку сетку 9x9”, но и задачу удержания внимания:
+
+- через карту прогресса
+- через персонажа Brainy
+- через AI Coach
+- через streak и ежедневный ритм
+- через 3D Sudoku как отдельное направление роста
+
+Идея в том, чтобы игроку было интересно не только решать Sudoku, но и возвращаться в продукт.
+
+## Основные маршруты
+
+- `/` — карта прогресса
+- `/play/[nodeId]` — обычный уровень кампании
+- `/daily` — ежедневный челлендж
+- `/super-level` — 3D Sudoku
+- `/leaderboard` — рейтинг по XP и daily attempts
+- `/shop` — Brainy Closet
+- `/profile` — профиль игрока
+- `/login` — вход
+- `/register` — регистрация
+
+## Локальный запуск
+
+1. Установить зависимости:
+
+```bash
+pnpm install
+```
+
+2. Скопировать `.env.example` в `.env.local`
+
+3. Заполнить переменные окружения
+
+4. Запустить проект:
+
+```bash
+pnpm dev
+```
+
+## Переменные окружения
 
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=
@@ -63,65 +141,47 @@ OPENROUTER_API_KEY=
 OPENROUTER_MODEL=openai/gpt-4.1-mini
 ```
 
-## AI Coach setup
+## Supabase
 
-1. Open `.env.local`
-2. Add either an OpenAI key or an OpenRouter key.
+Для полной работы проекта нужен Supabase:
 
-```bash
-# Option A — OpenAI
-OPENAI_API_KEY=sk-...
-OPENAI_COACH_MODEL=gpt-4.1
+- Auth
+- profiles
+- leaderboard data
+- cloud sync
 
-# Option B — OpenRouter
-OPENROUTER_API_KEY=sk-or-...
-OPENROUTER_MODEL=openai/gpt-4.1-mini
-```
+Что важно для auth-flow:
 
-3. Restart `pnpm dev` after editing env vars
-4. Verify the coach route locally:
+- Email provider должен быть включен
+- `Confirm email` должен быть выключен, если нужен мгновенный password signup
 
-```bash
-curl -X POST http://localhost:3000/api/coach/explain \
-  -H "Content-Type: application/json" \
-  --data '{"grid":[[5,3,0,0,7,0,0,0,0],[6,0,0,1,9,5,0,0,0],[0,9,8,0,0,0,0,6,0],[8,0,0,0,6,0,0,0,3],[4,0,0,8,0,3,0,0,1],[7,0,0,0,2,0,0,0,6],[0,6,0,0,0,0,2,8,0],[0,0,0,4,1,9,0,0,5],[0,0,0,0,8,0,0,7,9]],"row":0,"col":2,"value":4,"given":false}'
-```
+Для локальной разработки:
 
-If the live provider is missing or fails, the app automatically falls back to the local rule-based coach instead of breaking the UI.
+- `Site URL`: `http://localhost:3000`
+- `Redirect URL`: `http://localhost:3000/auth/confirm`
 
-## Supabase setup
+## AI Coach
 
-1. Create a new Supabase project for this app
-2. Run the SQL from [supabase/schema.sql](./supabase/schema.sql)
-3. In `Authentication -> URL Configuration`, set:
+AI Coach может работать:
 
-```text
-Site URL: http://localhost:3000
-Redirect URLs: http://localhost:3000/auth/confirm
-```
+- через OpenAI
+- через OpenRouter
+- через локальный fallback, если live-provider недоступен
 
-4. Keep Email provider enabled and turn Confirm email off for instant password signup
-5. If you intentionally re-enable email confirmation later, set the confirmation URL to:
+Поэтому интерфейс не ломается даже без внешнего AI-ответа, но лучший опыт — с подключенным ключом.
 
-```text
-{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&next=/profile
-```
+## Текущее состояние продукта
 
-6. Set your Site URL and Redirect URLs to the deployed frontend origin in production
+На текущий момент это уже рабочий прототип с реальным игровым loop:
 
-## Product direction
+- вход / регистрация
+- профиль
+- рейтинг
+- кампания
+- daily challenge
+- маскот
+- косметика для Brainy
+- AI Coach
+- 3D Sudoku
 
-- `Ocean` theme is the calm premium unlock
-- `Sunny Blue` is the more playful unlock without using restricted branding
-- `Upgrade to Pro` is intentionally UI-only in this MVP to signal monetization direction without pulling Stripe into the first cut
-- `3D Sudoku` is intentionally left as a teaser/stretch path after core gameplay and retention loops
-
-## Production env
-
-- Add the same AI env values to your hosting provider's server environment settings.
-- `OPENAI_API_KEY` and `OPENROUTER_API_KEY` must stay server-only and should never be exposed through `NEXT_PUBLIC_*`.
-
-## Notes
-
-- Cloud sync, auth, and leaderboards depend on a configured Supabase project and the environment variables above.
-- AI Coach uses local Sudoku analysis for grounding, then asks OpenAI or OpenRouter to explain the move in natural language.
+Следующий важный вектор развития — усиление 3D Sudoku и дальнейшая работа над тем, чтобы обычный Sudoku ощущался как продукт, а не как просто учебная сетка.
