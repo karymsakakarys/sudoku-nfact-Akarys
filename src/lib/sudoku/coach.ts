@@ -1,6 +1,8 @@
 import { CoachExplanation, SudokuGrid } from "@/lib/types"
 import { getCandidates } from "@/lib/sudoku/validation"
 
+const sudokuColumnLabels = ["A", "B", "C", "D", "E", "F", "G", "H", "I"] as const
+
 export interface ExplainMoveInput {
   grid: SudokuGrid
   row: number
@@ -27,17 +29,31 @@ export interface CoachAnalysis {
   isEmpty: boolean
 }
 
+export function formatSudokuColumnLabel(col: number) {
+  return sudokuColumnLabels[col] ?? "?"
+}
+
+export function formatSudokuRowLabel(row: number) {
+  return `${row + 1}`
+}
+
+export function formatSudokuCellLabel(row: number, col: number) {
+  return `${formatSudokuColumnLabel(col)}${formatSudokuRowLabel(row)}`
+}
+
 export function collectConflicts(grid: SudokuGrid, row: number, col: number, value: number) {
   const reasons: string[] = []
+  const rowLabel = formatSudokuRowLabel(row)
+  const columnLabel = formatSudokuColumnLabel(col)
 
   const rowMatch = grid[row].some((cell, index) => index !== col && cell === value)
   if (rowMatch) {
-    reasons.push(`В строке ${row + 1} уже есть цифра ${value}.`)
+    reasons.push(`В ${rowLabel}-м ряду уже есть цифра ${value}.`)
   }
 
   const colMatch = grid.some((currentRow, index) => index !== row && currentRow[col] === value)
   if (colMatch) {
-    reasons.push(`В столбце ${col + 1} уже есть цифра ${value}.`)
+    reasons.push(`В колонке ${columnLabel} уже есть цифра ${value}.`)
   }
 
   const boxRow = Math.floor(row / 3) * 3
@@ -95,7 +111,7 @@ export function analyzeMove(input: ExplainMoveInput): CoachAnalysis {
     rowValues,
     columnValues,
     boxValues,
-    cellLabel: `R${input.row + 1}C${input.col + 1}`,
+    cellLabel: formatSudokuCellLabel(input.row, input.col),
     isSingleCandidate: candidates.length === 1,
     isEmpty: value === null
   }

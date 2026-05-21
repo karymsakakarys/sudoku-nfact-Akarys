@@ -7,6 +7,7 @@ import { SudokuBoard } from "@/components/sudoku-board"
 import { useAppState } from "@/components/providers"
 import { getDailyDifficulty, getDailyPuzzle } from "@/lib/sudoku/daily"
 import { generateSudokuPuzzle, makeBoardFromPuzzle } from "@/lib/sudoku/generator"
+import { formatSudokuCellLabel } from "@/lib/sudoku/coach"
 import { annotateBoardConflicts, findBestHintCell, getCandidates, isBoardSolved } from "@/lib/sudoku/validation"
 import { Difficulty, PersistedGameSession, RewardBreakdown } from "@/lib/types"
 import { formatDuration, getUtcDateKey } from "@/lib/utils/date"
@@ -377,7 +378,7 @@ export function GameExperience({
             <h2 className="mt-2 text-xl font-semibold">Explain this move</h2>
             <p className="mt-2 text-sm text-soft">
               {selectedCell
-                ? `Фокус: R${selectedCell.row + 1}C${selectedCell.col + 1}.`
+                ? `Фокус: ${formatSudokuCellLabel(selectedCell.row, selectedCell.col)}.`
                 : "Выбери клетку, и Coach разложит ход по-человечески."}
             </p>
             {candidateInfo && candidateInfo.length > 0 && (
